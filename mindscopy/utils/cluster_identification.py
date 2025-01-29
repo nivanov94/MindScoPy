@@ -29,7 +29,7 @@ def compute_pred_strength(k, tr_mod, te_mod, X):
 
     return ps
 
-def cluster_pred_strength(X, y, thresh=None, krange=range(2, 12), Nrepeats=25):
+def cluster_pred_strength(X, thresh=None, krange=range(2, 12), Nrepeats=25):
     """ 
     perform the prediction strength of clustering method
     for k selection
@@ -39,9 +39,9 @@ def cluster_pred_strength(X, y, thresh=None, krange=range(2, 12), Nrepeats=25):
     ps = np.ones((len(krange), Nfolds*Nrepeats))
 
     for i_r in range(Nrepeats):
-        skf = sklearn.model_selection.StratifiedKFold(n_splits=2, shuffle=True, random_state=i_r)
+        kf = sklearn.model_selection.KFold(n_splits=2, shuffle=True, random_state=i_r)
 
-        for i_f, (tr_index, te_index) in enumerate(skf.split(X, y)):
+        for i_f, (tr_index, te_index) in enumerate(kf.split(X)):
             Xtr, Xte = X[tr_index], X[te_index]
 
             for i_k, k in enumerate(krange):

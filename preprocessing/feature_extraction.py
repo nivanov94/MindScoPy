@@ -12,8 +12,8 @@ class ScaledTangentSpace:
     References
     ----------
     .. [1] Ivanov. N, Lio, A., and Chau. T. (2023). Towards user-centric
-    BCI design: Markov chain-based user assessment for mental-imagery EEG-BCIs.
-    Journal of Neural Engineering, 20(6).
+            BCI design: Markov chain-based user assessment for mental-imagery EEG-BCIs.
+            Journal of Neural Engineering, 20(6).
     """
 
     def __init__(self):

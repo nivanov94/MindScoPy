@@ -46,8 +46,8 @@ def rebias_covariances(C, P):
     # Efficient batch transformation using np.einsum
     return np.einsum("ij,mjk,kl->mil", P_inv_sqrt, C, P_inv_sqrt)
 
-
-def apply_rebias_to_groups(X, group_labels):
+    
+def apply_rebias_to_groups(X, group_labels, group_means=None):
     """
     Applies the rebiasing method to the covariance matrices in X based on the
     group labels provided in group_labels. The mean of each group is calculated
@@ -63,19 +63,27 @@ def apply_rebias_to_groups(X, group_labels):
     group_labels : array_like (Nt,)
         The group labels for each trial in X.
 
+    group_means : array_like (Ng, Nc, Nc), optional
+        The mean covariance matrices for each group. If None, the mean covariance
+        matrices are calculated from the input covariance matrices. Default is None.
+
     Returns
     -------
     X_rebiased : array_like (Nt, Nc, Nc)
         The rebias covariance matrices.
     """
     
-    unique_groups = np.unique(group_labels)
+    unique_groups = np.sort(np.unique(group_labels))
     X_rebiased = np.zeros_like(X)
 
-    for group in unique_groups:
+    for i, group in enumerate(unique_groups):
         group_indices = np.where(group_labels == group)[0]
         group_covs = X[group_indices]
-        group_mean = pyriemann.utils.mean.mean_covariance(group_covs)
+
+        if group_means is None:
+            group_mean = pyriemann.utils.mean.mean_covariance(group_covs)
+        else:
+            group_mean = group_means[i]
 
         X_rebiased[group_indices] = rebias_covariances(group_covs, group_mean)
 

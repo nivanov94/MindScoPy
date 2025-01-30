@@ -87,7 +87,7 @@ def riemannian_potato_rejection(X, threshold=2.75, max_iter=5, verbose=False):
     Xcovs = pyriemann.utils.covariance.covariances(X)
     
     # apply some regularization to the covariance matrices to avoid singularities
-    r = 1e-6
+    r = 1e-4
     Xcovs = (1-r)*Xcovs + r*np.eye(Nc)
 
     # create the potato object
@@ -107,7 +107,8 @@ def riemannian_potato_rejection(X, threshold=2.75, max_iter=5, verbose=False):
             print(f'Iteration {i_t}: {trials_remaining - np.sum(clean_indices)} trials rejected.')
             trials_remaining = np.sum(clean_indices)
 
-        if not np.any(rejected_indices):
+        rejected_indices = rejected_indices.astype(bool)
+        if not np.any(~rejected_indices):
             break
 
     if verbose:
@@ -115,4 +116,4 @@ def riemannian_potato_rejection(X, threshold=2.75, max_iter=5, verbose=False):
 
     X_clean = X[clean_indices]
 
-    return X_clean
+    return X_clean, ~clean_indices

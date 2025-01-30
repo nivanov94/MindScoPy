@@ -17,7 +17,9 @@ class Trajectory_Subspace:
         self.ref = None # the reference point that acts as the origin for the subspace
 
 
-    def fit(self, X):
+    def fit(self, X, verbose=False):
+
+        X = np.reshape(X, (X.shape[0]*X.shape[1], X.shape[2]))
 
         # if a clustering model is not provided, use KMeans
         if self.clustering_model is None:
@@ -25,12 +27,15 @@ class Trajectory_Subspace:
             if self.n_clusters is not None:
                 K = self.n_clusters
             else:
+                if verbose:
+                    print('Selecting the number of clusters using prediction strength.')
                 K = self._select_k(X)
+                if verbose:
+                    print(f'Number of clusters selected: {K}')
 
             self.clustering_model = KMeans(n_clusters=K)
 
         # fit the clustering model
-        X = np.reshape(X, (X.shape[0]*X.shape[1], X.shape[2]))
         self.clustering_model.fit(X)
 
         ## define the subspace spanned by the cluster centers
@@ -38,10 +43,14 @@ class Trajectory_Subspace:
         self.ref = np.mean(self.clustering_model.cluster_centers_, axis=0)
 
         # compute the subspace bases
-        w = self.clustering_model.cluster_centers_ - self.ref
+        w = (self.clustering_model.cluster_centers_ - self.ref).T
 
         # compute the SVD of the cluster centers
         U, S, V = np.linalg.svd(w, full_matrices=False)
+
+        if verbose:
+            print(f'Singular values: {S}')
+            print(f'w shape: {w.shape}, U shape: {U.shape}')
 
         # extract the subspace bases
         for i in range(len(S)):
@@ -50,6 +59,8 @@ class Trajectory_Subspace:
         
         self.subspace_bases = U[:, :i]
         self._subspace_dim = i
+
+        return self
 
     
     def transform(self, X, y=None):
@@ -73,7 +84,11 @@ class Trajectory_Subspace:
         )
         
         # select the number of clusters
-        return np.argmax(crit) + min(self.krange)
+        K = min(self.krange)
+        for i in range(len(crit)):
+            if crit[i] >= self.k_selection_thresh:
+                K = i + min(self.krange)
+        return K
 
 
 class Trajectory:
@@ -113,7 +128,7 @@ class Trajectory:
         self.state_sequences = S
 
         # compute mean and covariance of the basis projs
-        self.mean_basis_projs = np.mean(self.basis_projs, axis=1)
+        self.mean_basis_projs = np.mean(self.basis_projs, axis=0)
         self.epoch_cov_basis_projs = np.zeros(
             (Ne, self.subspace_mdl._subspace_dim, self.subspace_mdl._subspace_dim)
         )
@@ -123,13 +138,15 @@ class Trajectory:
 
         for i in range(Ne):
             self.epoch_cov_basis_projs[i] = LedoitWolf().fit(
-                self.basis_projs[:, i, :].T
+                self.basis_projs[:, i, :]
             ).covariance_
 
         # total covariance matrix for all epochs for intra-trial var
-        self.total_cov_basis_projs = LedoitWolf().fit(
-            self.basis_projs[i].reshape(-1, self.subspace_mdl._subspace_dim).T
+        self.trial_cov_basis_projs = LedoitWolf().fit(
+            self.basis_projs[i].reshape(-1, self.subspace_mdl._subspace_dim)
         ).covariance_
+
+        return self
 
 
     def InterTaskDiff(self, traj2):
@@ -158,7 +175,7 @@ class Trajectory:
         Ne = self.state_sequences.shape[1]
         Nk = self.subspace_mdl._subspace_dim
 
-        intra_trial_var = 0
+        intra_trial_mean_var = 0
 
         for i_k in range(Nk):
             intra_trial_mean_var += np.var(self.mean_basis_projs[:, i_k])
@@ -185,9 +202,7 @@ class Trajectory:
                 ax[i_k].boxplot(
                     self.basis_projs[:, i_e, i_k], 
                     positions=[i_e+1],
-                    showfliers=False,
-                    alpha=0.5,
-                    c=self.plot_colors[i_k % len(self.plot_colors)]
+                    showfliers=False
                 )
 
                 # scatter plot of the observations at each sub-epoch
@@ -256,8 +271,6 @@ class Trajectory:
                             linewidth=5*transition_freq
                         )
 
-        for i_e in range(Ne):
-            for i_origin in range(Nstates):
                 if np.sum(transitions[i_e, i_origin, :]) > 0: 
                     state_freq = np.sum(transitions[i_e, i_origin, :])
                     ax.scatter(
@@ -266,6 +279,16 @@ class Trajectory:
                         s=250*state_freq,
                         alpha=state_freq
                     )
+        
+        for i_destination in range(Nstates):
+            if np.sum(transitions[-1, :, i_destination]) > 0:
+                state_freq = np.sum(transitions[-1, :, i_destination])
+                ax.scatter(
+                    Ne-1, i_destination,
+                    c=f'C{i_destination}',
+                    s=250*state_freq,
+                    alpha=state_freq
+                )
 
         ax.set_xlabel('Sub-epoch')
         ax.set_ylabel('Pattern state')

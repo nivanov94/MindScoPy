@@ -58,3 +58,24 @@ class ScaledTangentSpace:
             The signal transformed into the Riemannian tangent space.
         """
         return self.pipeline.transform(X)
+    
+    def fit_transform(self, X, y=None):
+        """
+        Fit the feature extractor to the signal X and transform it into the
+        Riemannian tangent space.
+
+        Parameters
+        ----------
+        X : array_like (Nt, Nc, Nc)
+            The input signal to extract features from, where Nt is the number of
+            trials or epochs and Nc is the number of channels.
+        y : array_like (Nt,), optional
+            Unused parameter. Default is None.
+
+        Returns
+        -------
+        X_ts : array_like (Nt, Nc*(Nc+1)//2)
+            The signal transformed into the Riemannian tangent space.
+        """
+        self.pipeline.fit(X)
+        return self.pipeline.transform(X)

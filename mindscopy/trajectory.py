@@ -108,7 +108,7 @@ class Trajectory:
 
         # total covariance matrix for all epochs for intra-trial var
         self.trial_cov_basis_projs = LedoitWolf().fit(
-            self.basis_projs[i].reshape(-1, self.subspace_mdl._subspace_dim)
+            self.basis_projs.reshape(-1, self.subspace_mdl._subspace_dim)
         ).covariance_
 
         return self
@@ -202,7 +202,7 @@ class Trajectory:
 
             if i_k == Nk-1:
                 ax[i_k].set_xlabel('Sub-epoch')
-                ax[i_k].set_xticks(np.arange(Ne))
+                ax[i_k].set_xticks(np.arange(Ne)+1)
                 ax[i_k].set_xticklabels(np.arange(Ne)+1)
             else:
                 ax[i_k].set_xticks([])

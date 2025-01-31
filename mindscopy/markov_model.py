@@ -1,6 +1,7 @@
 import numpy as np
 from .cluster_base import Unsupervised_Segmentation
 from .utils.transition_matrix import count_state_transitions
+from .utils.visualization import plot_pmfs, show_transition_matrices
 import matplotlib.pyplot as plt
 
 
@@ -211,18 +212,9 @@ def task_distinct(markov_models, visualize=False):
     if visualize:
         # plot the steady state distributions of the models
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-        for i in range(n_models):
-            ax.fill_between(np.arange(n_states)+1, markov_models[i].steady_state, step='pre', alpha=0.3, label=f'Task model {i+1}')
-            ax.step(np.arange(n_states), markov_models[i].steady_state, where='pre')
-        ax.set_xlabel('State')
-        ax.set_ylabel('P(State | Task)')
-        ax.set_ylim(0, 1)
-        ax.set_xlim(0, n_states)
-        ax.set_xticks(np.arange(n_states)+.5)
-        ax.set_xticklabels(np.arange(n_states)+1)
-        ax.legend()
+        pmfs = np.stack([mdl.steady_state for mdl in markov_models])
+        plot_pmfs(pmfs, ax, legend_str='Task', y_label='P(State | Task)')
         plt.show()
-
 
     task_distinct = 0
 
@@ -267,22 +259,18 @@ def relative_task_inconsistency(task_markov_models, rest_markov_model, visualize
         # with the probability of each state transition as
         # a color-coded matrix
         fig, ax = plt.subplots(1, n_models+1, figsize=(5*n_models, 5))
-        viz_models = task_markov_models + [rest_markov_model]
-        for i in range(len(viz_models)):
-            ax[i].imshow(viz_models[i].transition_matrix, cmap='Greens', vmin=0, vmax=1)
+        for i in range(n_models):
 
-            # add the probability values to the matrix
-            for j in range(viz_models[i].n_states):
-                for k in range(viz_models[i].n_states):
-                    ax[i].text(k, j, f'{viz_models[i].transition_matrix[j, k]:.2f}', ha='center', va='center', color='black')
-
-            if i == n_models:
-                ax[i].set_title(f'Rest model: H = {rest_markov_model.entropy_rate:.3f}')
-            else:
-                ax[i].set_title(f'Task model {i+1}: H = {task_markov_models[i].entropy_rate:.3f}')
-            ax[i].set_xlabel('Destination state')
-            ax[i].set_ylabel('Origin state')
+            title = f'Task {i+1}: H = {task_markov_models[i].entropy_rate:.3f}'
+            show_transition_matrices(
+                task_markov_models[i].transition_matrix, ax[i], title=title
+            )
         
+        show_transition_matrices(
+            rest_markov_model.transition_matrix,
+            ax[-1],
+            title=f'Rest: H = {rest_markov_model.entropy_rate:.3f}'
+        )
         plt.show()
 
 

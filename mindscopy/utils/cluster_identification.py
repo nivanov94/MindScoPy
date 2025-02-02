@@ -29,33 +29,34 @@ def compute_pred_strength(k, tr_mod, te_mod, X):
 
     return ps
 
-def cluster_pred_strength(X, thresh=None, krange=range(2, 12), Nrepeats=25):
+def cluster_pred_strength(X, krange=range(2, 12), Nrepeats=50):
     """ 
     perform the prediction strength of clustering method
     for k selection
     """
 
     Nfolds = 2
-    ps = np.ones((len(krange), Nfolds*Nrepeats))
+    ps = np.ones((len(krange), Nrepeats))
 
     for i_r in range(Nrepeats):
-        kf = sklearn.model_selection.KFold(n_splits=2, shuffle=True, random_state=i_r)
+        kf = sklearn.model_selection.KFold(
+            n_splits=Nfolds, shuffle=True, random_state=i_r
+        )
 
-        for i_f, (tr_index, te_index) in enumerate(kf.split(X)):
-            Xtr, Xte = X[tr_index], X[te_index]
+        tr_index, te_index = next(kf.split(X))
+        Xtr, Xte = X[tr_index], X[te_index]
 
-            for i_k, k in enumerate(krange):
-                tr_mod = sklearn.pipeline.Pipeline([
-                    ('scale', sklearn.preprocessing.StandardScaler()),
-                    ('kmeans', sklearn.cluster.KMeans(n_clusters=k, random_state=i_r))
-                ])
-                te_mod = sklearn.base.clone(tr_mod)
-                tr_mod.fit(Xtr)
-                te_mod.fit(Xte)
+        for i_k, k in enumerate(krange):
+            #tr_mod = sklearn.pipeline.Pipeline([
+            #    ('kmeans', sklearn.cluster.KMeans(n_clusters=k, random_state=i_r))
+            #])
+            tr_mod = sklearn.cluster.KMeans(n_clusters=k, random_state=i_r)
+            te_mod = sklearn.base.clone(tr_mod)
+            tr_mod.fit(Xtr)
+            te_mod.fit(Xte)
 
-                ps[i_k, i_r*Nfolds+i_f] = compute_pred_strength(k, tr_mod, te_mod, Xte)
+            ps[i_k, i_r] = compute_pred_strength(k, tr_mod, te_mod, Xte)
 
-
-    crit = np.mean(ps, axis=1) + np.std(ps, axis=1)/np.sqrt(Nfolds*Nrepeats)
+    crit = np.mean(ps, axis=1) + np.std(ps, axis=1)/np.sqrt(Nrepeats)
 
     return crit

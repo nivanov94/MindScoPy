@@ -22,7 +22,7 @@ class Unsupervised_Segmentation:
 
     def __init__(
             self, clustering_model=None, n_clusters=None, 
-            k_selection_thresh=0.3, krange=(2, 12)
+            k_selection_thresh=0.3, krange=range(2, 12)
     ):
         """
         Initialize the Markov Chain Model object.
@@ -52,15 +52,14 @@ class Unsupervised_Segmentation:
         # if a clustering model is not provided, use KMeans
         if self.clustering_model is None:
             # determine the number of clusters in the model
-            if self.n_clusters is not None:
-                K = self.n_clusters
-            else:
+            if self.n_clusters is None:
                 if verbose:
                     print('Selecting the number of clusters using prediction strength.')
-                K = self._select_k(X)
+                self.n_clusters = self._select_k(X)
                 if verbose:
-                    print(f'Number of clusters selected: {K}')
+                    print(f'Number of clusters selected: {self.n_clusters}')
 
+            K = self.n_clusters
             self.clustering_model = KMeans(n_clusters=K)
 
         # fit the clustering model

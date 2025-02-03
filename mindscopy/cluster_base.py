@@ -81,8 +81,6 @@ class Unsupervised_Segmentation:
             X, y=y, krange=self.krange
         )
 
-        print(crit)
-        
         # select the number of clusters
         K = min(self.krange)
         for i in range(len(crit)):

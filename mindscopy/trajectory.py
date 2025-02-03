@@ -13,10 +13,10 @@ class Trajectory_Subspace(Unsupervised_Segmentation):
         self.ref = None # the reference point that acts as the origin for the subspace
 
 
-    def fit(self, X, verbose=False):
+    def fit(self, X, y=None, verbose=False):
         
         # fit the clustering model
-        self.fit_cluster_model(X, verbose)
+        self.fit_cluster_model(X, y, verbose)
 
         ## define the subspace spanned by the cluster centers
         # compute the mean of the cluster centers

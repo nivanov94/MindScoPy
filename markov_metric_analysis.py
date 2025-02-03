@@ -176,7 +176,10 @@ for i_p, p in enumerate(range(1,Np+1)):
             X_feats_te = feature_extractor.transform(X_covs_te)
 
             k_sel_criterion[1, :, i_r*Nfolds + i_f] = cluster_pred_strength(
-                X_feats_tr, krange=krange, Nrepeats=1
+                X_feats_tr, 
+                y=np.repeat(y_tr, Nepochs), 
+                krange=krange,
+                Nrepeats=1
             )
 
             feature_extractor.fit(X_task_covs_tr)
@@ -184,7 +187,10 @@ for i_p, p in enumerate(range(1,Np+1)):
             X_task_feats_te = feature_extractor.transform(X_task_covs_te)
 
             k_sel_criterion[0, :, i_r*Nfolds + i_f] = cluster_pred_strength(
-                X_task_feats_tr, krange=krange, Nrepeats=1
+                X_task_feats_tr, 
+                y=np.repeat(y_task_tr, Nepochs), 
+                krange=krange, 
+                Nrepeats=1
             )
 
 

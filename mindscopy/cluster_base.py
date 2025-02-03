@@ -32,7 +32,7 @@ class Unsupervised_Segmentation:
         self.k_selection_thresh = k_selection_thresh
         self.krange = krange
 
-    def fit_cluster_model(self, X, verbose=False):
+    def fit_cluster_model(self, X, y=None, verbose=False):
         """
         Perform the clustering-based segmentation of the EEG signal space and
         to define the Markov chain model's states.
@@ -43,11 +43,20 @@ class Unsupervised_Segmentation:
             The input signal to be segmented, where Nt is the number of trials,
             Ne is the number of sub-epochs and Nf is the number of features.
 
+        y : array_like (Nt,)
+            The ground truth labels for the trials. If provided and using
+            prediction strength for k selection, the labels will be used to
+            split the data into training and testing sets.
+
         verbose : bool, optional
             Whether to print the number of clusters selected. Default is False.
+
         """
 
+        Nc, Ne, Nf = X.shape
         X = np.reshape(X, (X.shape[0]*X.shape[1], X.shape[2]))
+        if y is not None:
+            y = np.repeat(y, Ne)
 
         # if a clustering model is not provided, use KMeans
         if self.clustering_model is None:
@@ -55,7 +64,7 @@ class Unsupervised_Segmentation:
             if self.n_clusters is None:
                 if verbose:
                     print('Selecting the number of clusters using prediction strength.')
-                self.n_clusters = self._select_k(X)
+                self.n_clusters = self._select_k(X, y)
                 if verbose:
                     print(f'Number of clusters selected: {self.n_clusters}')
 
@@ -65,12 +74,14 @@ class Unsupervised_Segmentation:
         # fit the clustering model
         self.clustering_model.fit(X)
 
-    def _select_k(self, X):
+    def _select_k(self, X, y=None):
         
         # compute the prediction strength of clustering
         crit = cluster_pred_strength(
-            X, thresh=self.k_selection_thresh, krange=self.krange
+            X, y=y, krange=self.krange
         )
+
+        print(crit)
         
         # select the number of clusters
         K = min(self.krange)

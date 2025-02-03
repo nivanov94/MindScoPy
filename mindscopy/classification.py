@@ -245,9 +245,10 @@ class CSP_LDA:
         return self.predict(X)
 
 
-def RWCA(X, y, cv_method='LOO', metric='accuracy'):
+def RWCA(X, y, cv_method='LOO', metric='accuracy', repeats=100):
     """ Compute RWCA metric for each block of trials """
-    clsf = CSP_LDA(classes=3, m=1, log_var_feats=True)
+    classes = len(np.unique(y))
+    clsf = CSP_LDA(classes=classes, m=1, log_var_feats=True)
 
     Ntrials = X.shape[0]
     if cv_method == 'LOO':
@@ -260,7 +261,6 @@ def RWCA(X, y, cv_method='LOO', metric='accuracy'):
             clsf.fit(X[train_index], y[train_index])
             y_pred[i_t] = clsf.predict(X[test_index])[0]
     else:
-        repeats = 100
         y_pred = np.zeros((Ntrials,repeats))
         for i_r in range(repeats):
             skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=i_r)

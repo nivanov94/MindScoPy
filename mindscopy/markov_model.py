@@ -27,7 +27,7 @@ class Markov_State_Space(Unsupervised_Segmentation):
         super().__init__(clustering_model, n_clusters, k_selection_threshold, krange)
 
 
-    def fit(self, X, verbose=False):
+    def fit(self, X, y=None, verbose=False):
         """
         Perform the clustering-based segmentation of the EEG signal space and
         to define the Markov chain model's states.
@@ -38,11 +38,16 @@ class Markov_State_Space(Unsupervised_Segmentation):
             The input signal to be segmented, where Nt is the number of trials,
             Ne is the number of sub-epochs and Nf is the number of features.
 
+        y : array_like (Nt,)
+            The ground truth labels for the trials. If provided and using
+            prediction strength for k selection, the labels will be used to
+            split the data into training and testing sets.
+
         verbose : bool, optional
             Whether to print the number of clusters selected. Default is False.
         """
 
-        self.fit_cluster_model(X, verbose)
+        self.fit_cluster_model(X, y=y, verbose=verbose)
         return self
     
     def transform(self, X, y=None):

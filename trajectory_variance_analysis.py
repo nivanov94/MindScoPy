@@ -1,8 +1,8 @@
 import mindscopy as ms
-from preprocessing.artifact_removal import peak_rejection, riemannian_potato_rejection
-from preprocessing.misc import epoch
-from preprocessing.rebias import apply_rebias_to_groups
-from preprocessing.feature_extraction import ScaledTangentSpace
+from mindscopy.preprocessing.artifact_removal import peak_rejection, riemannian_potato_rejection
+from mindscopy.preprocessing.misc import epoch
+from mindscopy.preprocessing.rebias import apply_rebias_to_groups
+from mindscopy.preprocessing.feature_extraction import ScaledTangentSpace
 import numpy as np
 import pyriemann
 import pickle

@@ -6,11 +6,7 @@ from mindscopy.preprocessing.feature_extraction import ScaledTangentSpace
 import numpy as np
 import pyriemann
 import pickle
-from sklearn.model_selection import StratifiedKFold
-from mindscopy.utils.cluster_identification import cluster_pred_strength
-from sklearn.metrics import f1_score
 from matplotlib import pyplot as plt
-from scipy import stats
 
 # load the preprocessed (bandpass filtered and epoched) BCI Competition IV 2a data
 with open('data/BCI_Comp_IV_2a/preprocessed_data.pkl', 'rb') as f:

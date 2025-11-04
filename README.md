@@ -14,7 +14,7 @@ It provides tools for unsupervised EEG segmentation, Markov chain modeling, and 
 ---
 
 ## Repository structure
-
+```
 │   bci_comp_iv2a_preprocessing.py
 │   example_markov_chain_analysis.ipynb
 │   example_trajectory.ipynb
@@ -40,6 +40,7 @@ It provides tools for unsupervised EEG segmentation, Markov chain modeling, and 
     │   │   transition_matrix.py
     │   │   visualization.py
     │   │   __init__.py
+```
 ---
 
 ## Overview

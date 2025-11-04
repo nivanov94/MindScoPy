@@ -251,6 +251,7 @@ class Trajectory:
 
         return epoch_vars
 
+
     def intra_trial_var(self):
         """
         Compute the intra-trial variance of the trajectory [1].
@@ -324,69 +325,6 @@ class Trajectory:
         if show:
             plt.show()
 
-
-        #Nk = self.subspace_mdl.subspace_dim
-        #Ne = self.state_sequences.shape[1]
-
-        #if ax is None:
-        #    show = True
-        #    fig, ax = plt.subplots(Nk, 1, figsize=(5, Nk*3))
-        #else:
-        #    show = False
-
-        #for i_k in range(Nk):
-        #    for i_e in range(Ne):
-        #        # box plots at each sub-epoch
-        #        ax[i_k].boxplot(
-        #            self.basis_projs[:, i_e, i_k], 
-        #            positions=[i_e+1],
-        #            showfliers=False
-        #        )
-
-        #        if plot_all_pts:
-        #            # scatter plot of the observations at each sub-epoch
-        #            ax[i_k].scatter(
-        #                np.ones(self.basis_projs.shape[0])*(i_e+1),
-        #                self.basis_projs[:, i_e, i_k],
-        #                c=self.plot_colors[i_k % len(self.plot_colors)],
-        #                alpha=0.5
-        #            )
-
-        #    if plot_all_pts:
-        #        # plot connections between observations within the same trials
-        #        for i_t in range(self.basis_projs.shape[0]):
-        #            ax[i_k].plot(
-        #                np.arange(1, Ne+1),
-        #                self.basis_projs[i_t, :, i_k],
-        #                c='black',
-        #                alpha=0.2
-        #            )
-
-        #    # plot the mean of the basis projections
-        #    ax[i_k].plot(
-        #        np.arange(1, Ne+1),
-        #        self.mean_basis_projs[:, i_k],
-        #        c=self.plot_colors[i_k % len(self.plot_colors)],
-        #        linewidth=3,
-        #        marker='o',
-        #        markersize=10
-        #    )
-
-        #    if yrange is not None:
-        #        ax[i_k].set_ylim(yrange)
-
-        #    if i_k == Nk-1:
-        #        ax[i_k].set_xlabel('Epoch')
-        #        ax[i_k].set_xticks(np.arange(Ne)+1)
-        #        ax[i_k].set_xticklabels(np.arange(Ne)+1)
-        #    else:
-        #        ax[i_k].set_xticks([])
-
-        #    ax[i_k].set_ylabel(f'$u_{i_k}$')
-
-        #if show:
-        #    plt.show()
-
         
     def plot_trellis(self, ax=None, plot_colors=None):
         """
@@ -421,63 +359,6 @@ class Trajectory:
         if show:
             plt.show()
 
-#        Nstates = self.subspace_mdl.clustering_model.n_clusters
-#        Ne = self.state_sequences.shape[1]
-#
-#        transitions = count_sub_epoch_state_transitions(
-#            self.state_sequences, self.subspace_mdl.clustering_model.n_clusters
-#        )
-#        transitions /= np.sum(transitions[0])
-#
-#        if ax is None:
-#            fig, ax = plt.subplots(1, 1, figsize=(5, 3))
-#            show = True
-#        else:
-#            show = False
-#
-#        for i_e in range(Ne-1):
-#            for i_origin in range(Nstates):
-#                for i_destination in range(Nstates):
-#                    if transitions[i_e, i_origin, i_destination] > 0:
-#                        transition_freq = transitions[i_e, i_origin, i_destination]
-#                        ax.plot(
-#                            [i_e, i_e+1],
-#                            [i_origin, i_destination],
-#                            c=f'C{i_origin}',
-#                            alpha=min(1, 0.2+transition_freq),
-#                            linewidth=5*transition_freq
-#                        )
-#
-#                if np.sum(transitions[i_e, i_origin, :]) > 0: 
-#                    state_freq = np.sum(transitions[i_e, i_origin, :])
-#                    ax.scatter(
-#                        i_e, i_origin,
-#                        c=f'C{i_origin}',
-#                        s=250*state_freq,
-#                        alpha=state_freq
-#                    )
-#        
-#        for i_destination in range(Nstates):
-#            if np.sum(transitions[-1, :, i_destination]) > 0:
-#                state_freq = np.sum(transitions[-1, :, i_destination])
-#                ax.scatter(
-#                    Ne-1, i_destination,
-#                    c=f'C{i_destination}',
-#                    s=250*state_freq,
-#                    alpha=state_freq
-#                )
-#
-#        ax.set_xlabel('Epoch')
-#        ax.set_ylabel('Pattern state')
-#
-#        ax.set_xticks(np.arange(Ne))
-#        ax.set_xticklabels(np.arange(Ne)+1)
-#        ax.set_yticks(np.arange(Nstates))
-#        ax.set_yticklabels([f'S{i+1}' for i in range(Nstates)])
-#
-#        if show:
-#            plt.show()
-
 
 def plot_trajectories(trajectories, plot_all_pts=False, box_plot=False):
     """
@@ -498,9 +379,11 @@ def plot_trajectories(trajectories, plot_all_pts=False, box_plot=False):
     if n_dims == 1:
         ax = np.atleast_2d(ax)
 
+    plot_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
     for i_task, traj in enumerate(trajectories):
         for i_dim in range(n_dims):
-            color = traj.plot_colors[i_dim % len(traj.plot_colors)]
+            color = plot_colors[i_dim % len(plot_colors)]
             data = traj.basis_projs[:, :, i_dim]
             _plot_trajectory_dim(ax[i_dim, i_task], data, color, box_plot, plot_all_pts)
             if i_dim == 0:
@@ -512,87 +395,6 @@ def plot_trajectories(trajectories, plot_all_pts=False, box_plot=False):
 
     plt.tight_layout()
 
-    #n_tasks = len(trajectories)
-    #n_dims = trajectories[0].subspace_mdl.subspace_dim
-    #fig, ax = plt.subplots(n_dims, n_tasks, figsize=(n_tasks*5, n_dims*3))
-
-    #y_ranges = np.zeros((n_dims, 2))
-    #for i_task, traj in enumerate(trajectories):
-    #    for i_dim in range(n_dims):
-    #        if box_plot:
-    #            y_ranges[i_dim, 0] = min(y_ranges[i_dim, 0], np.min(traj.basis_projs[:, :, i_dim]))
-    #            y_ranges[i_dim, 1] = max(y_ranges[i_dim, 1], np.max(traj.basis_projs[:, :, i_dim]))
-    #        else:
-    #            means = np.mean(traj.basis_projs[:, :, i_dim], axis=0)
-    #            stds = np.std(traj.basis_projs[:, :, i_dim], axis=0)
-    #            y_ranges[i_dim, 0] = min(y_ranges[i_dim, 0], np.min(means - stds)-0.1)
-    #            y_ranges[i_dim, 1] = max(y_ranges[i_dim, 1], np.max(means + stds)+0.1)
-
-    #for i_task, traj in enumerate(trajectories):
-    #    for i_dim in range(n_dims):
-    #        # box plots at each sub-epoch
-    #        if box_plot:
-    #            ax[i_dim, i_task].boxplot(
-    #                traj.basis_projs[:, :, i_dim], 
-    #                positions=np.arange(1, traj.basis_projs.shape[1]+1),
-    #                showfliers=False
-    #            )
-    #        else:
-    #            # show variance as shaded area
-    #            means = np.mean(traj.basis_projs[:, :, i_dim], axis=0)
-    #            stds = np.std(traj.basis_projs[:, :, i_dim], axis=0)
-    #            ax[i_dim, i_task].fill_between(
-    #                np.arange(1, traj.basis_projs.shape[1]+1),
-    #                means - stds,
-    #                means + stds,
-    #                color=traj.plot_colors[i_dim % len(traj.plot_colors)],
-    #                alpha=0.3
-    #            )
-
-    #        if plot_all_pts:
-    #            # scatter plot of the observations at each sub-epoch
-    #            for i_e in range(traj.basis_projs.shape[1]):
-    #                ax[i_dim, i_task].scatter(
-    #                    np.ones(traj.basis_projs.shape[0])*(i_e+1),
-    #                    traj.basis_projs[:, i_e, i_dim],
-    #                    c=traj.plot_colors[i_dim % len(traj.plot_colors)],
-    #                    alpha=0.5
-    #                )
-
-    #            # plot connections between observations within the same trials
-    #            for i_t in range(traj.basis_projs.shape[0]):
-    #                ax[i_dim, i_task].plot(
-    #                    np.arange(1, traj.basis_projs.shape[1]+1),
-    #                    traj.basis_projs[i_t, :, i_dim],
-    #                    c='black',
-    #                    alpha=0.2
-    #                )
-
-    #        # plot the mean of the basis projections
-    #        ax[i_dim, i_task].plot(
-    #            np.arange(1, traj.basis_projs.shape[1]+1),
-    #            traj.mean_basis_projs[:, i_dim],
-    #            c=traj.plot_colors[i_dim % len(traj.plot_colors)],
-    #            linewidth=3,
-    #            marker='o',
-    #            markersize=10
-    #        )
-
-    #        # set y-limits
-    #        if i_dim == 0:
-    #            ax[i_dim, i_task].set_title(f'Task {i_task+1}')
-
-    #        if i_task == 0:
-    #            ax[i_dim, i_task].set_ylabel(f'$u_{i_dim}$')
-
-    #        ax[i_dim, i_task].set_ylim(y_ranges[i_dim, 0], y_ranges[i_dim, 1])
-    #        ax[i_dim, i_task].set_xticks(np.arange(1, traj.basis_projs.shape[1]+1))
-    #        ax[i_dim, i_task].set_xticklabels(np.arange(1, traj.basis_projs.shape[1]+1))
-
-
-    #    if i_dim == n_dims-1:
-    #        ax[i_dim, i_task].set_xlabel('Epoch')
-
 
 def plot_trellises(trajectories):
     """
@@ -603,17 +405,6 @@ def plot_trellises(trajectories):
     trajectories : list of Trajectory
         List of trajectory objects for different tasks.
     """
-    #n_tasks = len(trajectories)
-    #n_states = trajectories[0].subspace_mdl.clustering_model.n_clusters
-    #Ne = trajectories[0].state_sequences.shape[1]
-
-    #fig, ax = plt.subplots(1, n_tasks, figsize=(n_tasks*5, 3))
-
-    #for i_task, traj in enumerate(trajectories):
-    #    traj.plot_trellis(ax=ax[i_task])
-    #    ax[i_task].set_title(f'Task {i_task+1}')
-
-    #plt.show()
     n_tasks = len(trajectories)
     fig, ax, _ = _setup_axes(1, n_tasks, figsize=(5 * n_tasks, 3))
 

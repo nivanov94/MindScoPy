@@ -48,9 +48,9 @@ It provides tools for unsupervised EEG segmentation, Markov chain modeling, and 
 - **`markov_model.py`** – Implements user-state transition modeling, steady-state metrics, and entropy-based stability measures.  
 - **`trajectory.py`** – Defines subspace trajectory analysis for visualizing intra-trial EEG variability.  
 - **`cluster_base.py`** – Provides the unsupervised clustering and subspace construction base classes.  
-- **`classification.py`** – Contains supervised and unsupervised model wrappers for state classification.  
-- **`preprocessing/`** – Includes EEG artifact rejection, feature extraction, and trial re-biasing utilities.  
-- **`utils/`** – Helper modules for transition counting, visualization, and cluster identity management.  
+- **`classification.py`** – Contains implementations of a CSP-LDA classifier and run-wise classification accuracy metric used for metric validation.  
+- **`preprocessing/`** – Includes EEG artifact rejection, feature extraction, and covariance matrix re-biasing utilities.  
+- **`utils/`** – Helper modules for Markov chain model construction, visualization, and cluster identity management.  
 - **Example notebooks** (`example_markov_chain_analysis.ipynb`, `example_trajectory.ipynb`) demonstrate full analysis workflows using the BCI Competition IV-2a dataset.
 - **Example analysis scripts** (`markov_metric_analysis.py`, `trajectory_variance_analysis.py`) provide full implementations of the analyses performed in their respective journal articles using data from the BCI Competition IV-2a dataset.
 - **`bci_comp_iv2a_preprocessing.py`** - Implements required preprocessing and data preparation steps for raw BCI competition IV-2a data.

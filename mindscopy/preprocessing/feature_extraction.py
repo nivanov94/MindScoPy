@@ -15,7 +15,6 @@ class ScaledTangentSpace:
             BCI design: Markov chain-based user assessment for mental-imagery EEG-BCIs.
             Journal of Neural Engineering, 20(6).
     """
-
     def __init__(self):
         self.ts = pyriemann.tangentspace.TangentSpace()
         self.scalar = StandardScaler()
@@ -28,10 +27,10 @@ class ScaledTangentSpace:
 
         Parameters
         ----------
-        X : array_like (Nt, Nc, Nc)
-            The input signal to extract features from, where Nt is the number of
-            trials or epochs and Nc is the number of channels.
-        y : array_like (Nt,), optional
+        X : array_like (n_trials, n_channels, n_channels)
+            The input signal to extract features from, where n_trials is the number of
+            trials or epochs and n_channels is the number of channels.
+        y : array_like (n_trials,), optional
             Unused parameter. Default is None.
 
         Returns
@@ -48,13 +47,13 @@ class ScaledTangentSpace:
 
         Parameters
         ----------
-        X : array_like (Nt, Nc, Nc)
-            The input signal to extract features from, where Nt is the number of
-            trials or epochs and Nc is the number of channels.
+        X : array_like (n_trials, n_channels, n_channels)
+            The input signal to extract features from, where n_trials is the number of
+            trials or epochs and n_channels is the number of channels.
 
         Returns
         -------
-        X_ts : array_like (Nt, Nc*(Nc+1)//2)
+        X_ts : array_like (n_trials, n_channels*(n_channels+1)//2)
             The signal transformed into the Riemannian tangent space.
         """
         return self.pipeline.transform(X)
@@ -66,15 +65,15 @@ class ScaledTangentSpace:
 
         Parameters
         ----------
-        X : array_like (Nt, Nc, Nc)
-            The input signal to extract features from, where Nt is the number of
-            trials or epochs and Nc is the number of channels.
-        y : array_like (Nt,), optional
+        X : array_like (n_trials, n_channels, n_channels)
+            The input signal to extract features from, where n_trials is the number of
+            trials or epochs and n_channels is the number of channels.
+        y : array_like (n_trials,), optional
             Unused parameter. Default is None.
 
         Returns
         -------
-        X_ts : array_like (Nt, Nc*(Nc+1)//2)
+        X_ts : array_like (n_trials, n_channels*(n_channels+1)//2)
             The signal transformed into the Riemannian tangent space.
         """
         self.pipeline.fit(X)

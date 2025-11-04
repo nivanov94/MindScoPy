@@ -1,30 +1,31 @@
 import numpy as np
-from .cluster_base import Unsupervised_Segmentation
+from .cluster_base import UnsupervisedSegmentation
 from .utils.transition_matrix import count_state_transitions
 from .utils.visualization import plot_pmfs, show_transition_matrices
 import matplotlib.pyplot as plt
 
 
-class Markov_State_Space(Unsupervised_Segmentation):
+class MarkovStateSpace(UnsupervisedSegmentation):
     """
     Model mental imagery trials using an unsupervised clustering-based
     segmentation of the EEG signal space and a Markov chain model [1]_.
     
     References
     ----------
-    .. [1] Ivanov. N, Lio, A., and Chau. T. (2023). Towards user-centric
+    .. [1] Ivanov, N, Lio, A., and Chau. T. (2023). Towards user-centric
             BCI design: Markov chain-based user assessment for mental-imagery EEG-BCIs.
             Journal of Neural Engineering, 20(6).
     """
 
     def __init__(
             self, clustering_model=None, n_clusters=None, 
-            k_selection_threshold=0.3, krange=(2, 12)
+            k_selection_thresh=0.3, krange=range(2, 12), prefit=False
     ):
         """
         Initialize the Markov Chain Model object.
         """
-        super().__init__(clustering_model, n_clusters, k_selection_threshold, krange)
+        super().__init__(clustering_model, n_clusters, k_selection_thresh, krange, prefit)
+        self.n_states = None
 
 
     def fit(self, X, y=None, verbose=False):
@@ -34,11 +35,11 @@ class Markov_State_Space(Unsupervised_Segmentation):
 
         Parameters
         ----------
-        X : array_like (Nt, Ne, Nf)
-            The input signal to be segmented, where Nt is the number of trials,
-            Ne is the number of sub-epochs and Nf is the number of features.
+        X : array_like (n_trials, n_epochs, Nf)
+            The input signal to be segmented, where n_trials is the number of trials,
+            n_epochs is the number of epochs and Nf is the number of features.
 
-        y : array_like (Nt,)
+        y : array_like (n_trials,)
             The ground truth labels for the trials. If provided and using
             prediction strength for k selection, the labels will be used to
             split the data into training and testing sets.
@@ -48,6 +49,10 @@ class Markov_State_Space(Unsupervised_Segmentation):
         """
 
         self.fit_cluster_model(X, y=y, verbose=verbose)
+        if hasattr(self.clustering_model, 'cluster_centers_'):
+            self.n_states = self.clustering_model.cluster_centers_.shape[0]
+        else:
+            raise ValueError("Clustering model does not have cluster_centers_ attribute.")
         return self
     
     def transform(self, X, y=None):
@@ -56,28 +61,34 @@ class Markov_State_Space(Unsupervised_Segmentation):
 
         Parameters
         ----------
-        X : array_like (Nt, Ne, Nf)
-            The input signal to be segmented, where Nt is the number of trials,
-            Ne is the number of sub-epochs and Nf is the number of features.
-        y : array_like (Nt,), optional
+        X : array_like (n_trials, n_epochs, n_feats)
+            The input signal to be segmented, where n_trials is the number of trials,
+            n_epochs is the number of epochs and Nf is the number of features.
+        y : array_like (n_trials,), optional
             Unused parameter. Default is None.
 
         Returns
         -------
-        S : array_like (Nt,)
+        S : array_like (n_trials, n_epochs)
             The state sequence of the Markov chain model.
         """
-        X = np.reshape(X, (X.shape[0]*X.shape[1], X.shape[2]))
-        return self.clustering_model.predict(X)
+        if len(X.shape) != 3:
+            raise ValueError("Input data must be 3-dimensional (n_trials, n_epochs, n_features)")
+
+        n_trials, n_epochs, n_feats = X.shape
+        X = np.reshape(X, (n_trials*n_epochs, n_feats))  # stack first 2 dims
+        S = self.clustering_model.predict(X)
+        S = np.reshape(S, (n_trials, n_epochs))
+        return S
 
 
-class Markov_Model:
+class MarkovChainModel:
     """
-    Model mental imagery trials using a Markov chain model [1]_.
+    Markov chain representation of clustered EEG state transitions [1]_.
     
     References
     ----------
-    .. [1] Ivanov. N, Lio, A., and Chau. T. (2023). Towards user-centric
+    .. [1] Ivanov, N, Lio, A., and Chau. T. (2023). Towards user-centric
             BCI design: Markov chain-based user assessment for mental-imagery EEG-BCIs.
             Journal of Neural Engineering, 20(6).
     """
@@ -87,7 +98,10 @@ class Markov_Model:
         Initialize the Markov Chain Model object.
         """
         self.cluster_mdl = cluster_mdl
-        self.n_states = cluster_mdl.clustering_model.cluster_centers_.shape[0]
+        self.n_states = cluster_mdl.n_states
+
+        if self.n_states is None:
+            raise ValueError("The clustering model must be fitted and have a integer n_states attribute.")
 
         self.transition_matrix = None
         self.steady_state = None
@@ -99,19 +113,22 @@ class Markov_Model:
 
         Parameters
         ----------
-        S : array_like (Nt, Ne)
-            The state sequence of the Markov chain model. Nt is the number of trials
-            and Ne is the number of sub-epochs per trial.
+        S : array_like (n_trials, n_epochs)
+            The state sequence of the Markov chain model. n_trials is the number of trials
+            and n_epochs is the number of epochs per trial.
         damping : float, optional
             The damping factor for the transition matrix. Default is 0.05.
         verbose : bool, optional
             Whether to print the transition matrix. Default is False.
         """
-        Nt, Ne = S.shape
+        if S.ndim != 2:
+            raise ValueError("Input state sequence S must be 2-dimensional (n_trials, n_epochs).")
+
+        n_trials, n_epochs = S.shape
         transition_matrix = count_state_transitions(S, self.n_states)
 
         # apply row-wise damping to the transition counts
-        total_trans_count = Nt * Ne
+        total_trans_count = n_trials * n_epochs
         for i in range(self.n_states):
             # compute the raw observation frequencies
             state_trans_count = np.sum(transition_matrix[i])
@@ -130,14 +147,12 @@ class Markov_Model:
         # apply damping to the entire transition matrix
         # to ensure that the matrix is irreducible and aperiodic
         self.transition_matrix = (
-            (1 - damping) * transition_matrix + 
-            damping * np.ones((self.n_states, self.n_states)) / self.n_states
+            (1 - damping) * transition_matrix
+            + damping * np.ones((self.n_states, self.n_states)) / self.n_states
         )
 
-
         if verbose:
-            print('Transition matrix:')
-            print(self.transition_matrix)
+            print(f'Transition matrix:\n{np.array2string(self.transition_matrix, formatter={"float_kind":lambda x: "%.3f" % x})}')
 
         # compute the steady state distribution and the entropy rate
         self.compute_steady_state()
@@ -150,22 +165,28 @@ class Markov_Model:
         """
         Compute the steady state distribution of the Markov chain model.
         """
+        if self.transition_matrix is None:
+            raise ValueError("Transition matrix is not defined. Fit the model first.")
+
         # compute the eigenvalues and eigenvectors of the transition matrix
         w, v = np.linalg.eig(self.transition_matrix.T)
 
         # extract the eigenvector corresponding to the largest eigenvalue (equal to 1)
-        w = np.abs(w)
-        v = np.abs(v)
-        self.steady_state = v[:, np.argmax(w)] / np.sum(v[:, np.argmax(w)]) # normalize the eigenvector to sum to 1
+        v = np.real(v[:, np.isclose(w, 1)])[:,0]
+        if v[0] < 0:
+            v = -v
+        self.steady_state = v / np.sum(v)  # normalize the eigenvector to sum to 1
 
     def compute_entropy_rate(self):
         """
         Compute the entropy rate of the Markov chain model.
         """
-        
+        if self.transition_matrix is None:
+            raise ValueError("Transition matrix is not defined. Fit the model first.")
+
         # compute the state transition entropy
-        # we don't need to check for zeros since the transition matrix is already damped
-        state_entropy = -np.sum(self.transition_matrix * np.log2(self.transition_matrix), axis=1)
+        A = np.clip(self.transition_matrix, 1e-12, 1)  # avoid log(0)
+        state_entropy = -np.sum(A * np.log2(A), axis=1)
         self.entropy_rate = np.dot(self.steady_state, state_entropy)
     
 
@@ -185,10 +206,14 @@ def hellinger_distance(P, Q):
     hellinger : float
         The Hellinger distance between the two probability distributions.
     """
+    P, Q = np.asarray(P, dtype=np.float64), np.asarray(Q, dtype=np.float64)  # ensure inputs are numpy arrays
+    if P.shape != Q.shape:
+        raise ValueError("Input probability distributions must have the same shape.")
+
     return np.sqrt(0.5 * np.sum((np.sqrt(P) - np.sqrt(Q))**2))
 
 
-def task_distinct(markov_models, visualize=False):
+def task_distinct(markov_models, visualize=False, mode='pairwise'):
     """
     Compute the taskDistinct metric from [1]_ 
     for a set of Markov chain models.
@@ -197,6 +222,17 @@ def task_distinct(markov_models, visualize=False):
     ----------
     markov_models : list
         A list of Markov chain models fitted to different tasks.
+    
+    visualize : bool, optional
+        Whether to visualize the steady state distributions of the models.
+        Default is False.
+
+    mode : str, optional
+        The mode of taskDistinct computation. Options are:
+        - 'pairwise': average pairwise Hellinger distance between the steady state distributions.
+        - 'mean': average Hellinger distance between each model and the mean steady state distribution.
+        - 'distance_to_closest': average Hellinger distance between each model and the closest other model.
+        Default is 'pairwise'.
 
     Returns
     -------
@@ -205,31 +241,66 @@ def task_distinct(markov_models, visualize=False):
 
     References
     ----------
-    .. [1] Ivanov. N, Lio, A., and Chau. T. (2023). Towards user-centric
+    .. [1] Ivanov, N, Lio, A., and Chau. T. (2023). Towards user-centric
             BCI design: Markov chain-based user assessment for mental-imagery EEG-BCIs.
             Journal of Neural Engineering, 20(6).
     """
-    from scipy.special import comb
-
+    if len(markov_models) < 2:
+        raise ValueError("At least two markov_models are required to compute task_distinct")
+    
+    
     n_models = len(markov_models)
     n_states = markov_models[0].n_states
-
+    for m in markov_models:
+        if m.n_states != n_states:
+            raise ValueError("All models must have the same number of states")
+    
+    pmfs = np.stack([m.steady_state for m in markov_models])
+    
     if visualize:
-        # plot the steady state distributions of the models
-        fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-        pmfs = np.stack([mdl.steady_state for mdl in markov_models])
+        fig, ax = plt.subplots(1, 1, figsize=(6, 4))
         plot_pmfs(pmfs, ax, legend_str='Task', y_label='P(State | Task)')
-        plt.show()
+    
+    return _compute_task_distinct_from_pmfs(pmfs, mode)
+    
+    
+def _compute_task_distinct_from_pmfs(pmfs, mode='pairwise'):
+    """
+    Compute the taskDistinct metric from the steady state distributions.
+    """
+    n_models, n_states = pmfs.shape
+    task_distinct = 0.0
+    
+    if mode == 'pairwise':
+        count = 0
+        for i in range(n_models - 1):
+            for j in range(i + 1, n_models):
+                task_distinct += hellinger_distance(pmfs[i], pmfs[j])
+                count += 1
+        task_distinct /= max(1, count)
+    
+    elif mode == 'mean':
+        avg = pmfs.mean(axis=0)
+        for i in range(n_models):
+            task_distinct += hellinger_distance(pmfs[i], avg)
+        task_distinct /= n_models
 
-    task_distinct = 0
+    elif mode == 'distance_to_closest':
+        for i in range(n_models):
+            min_d = np.inf
+            for j in range(n_models):
+                if i == j:
+                    continue
+                d = hellinger_distance(pmfs[i], pmfs[j])
+                if d < min_d:
+                    min_d = d
+            task_distinct += min_d
+        task_distinct /= n_models
 
-    for i in range(n_models-1):
-        for j in range(i+1, n_models):
-            task_distinct += hellinger_distance(markov_models[i].steady_state, markov_models[j].steady_state)
-
-    # normalize the taskDistinct metric by the number of model pairs - binomial coefficient
-    n_pairs = comb(n_models, 2)
-    return task_distinct / n_pairs
+    else:
+        raise ValueError(f"Unknown mode '{mode}' for task_distinct")
+    
+    return task_distinct
 
 
 def relative_task_inconsistency(task_markov_models, rest_markov_model, visualize=False):
@@ -252,10 +323,18 @@ def relative_task_inconsistency(task_markov_models, rest_markov_model, visualize
 
     References
     ----------
-    .. [1] Ivanov. N, Lio, A., and Chau. T. (2023). Towards user-centric
+    .. [1] Ivanov, N, Lio, A., and Chau. T. (2023). Towards user-centric
             BCI design: Markov chain-based user assessment for mental-imagery EEG-BCIs.
             Journal of Neural Engineering, 20(6).
     """
+    if len(task_markov_models) == 0:
+        raise ValueError("task_markov_models must not be empty")
+
+    for m in task_markov_models:
+        if m.entropy_rate is None:
+            raise ValueError("All task models must have entropy_rate computed (call fit())")
+    if rest_markov_model.entropy_rate is None:
+        raise ValueError("rest_markov_model must have entropy_rate computed (call fit())")
 
     n_models = len(task_markov_models)
 

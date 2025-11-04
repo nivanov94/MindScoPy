@@ -1,5 +1,6 @@
 import mne
 import numpy as np
+import matplotlib.pyplot as plt
 
 # To Do: make this function more modular
 
@@ -113,6 +114,3 @@ def show_transition_matrices(A, ax, title=None, x_label='Origin', y_label='Desti
     ax.set_ylabel(y_label)
     if title is not None:
         ax.set_title(title)
-
-    
-

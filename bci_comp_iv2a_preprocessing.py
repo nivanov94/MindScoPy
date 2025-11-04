@@ -60,8 +60,8 @@ for file in files:
         verbose=False
     )
     
+    # extract the 2 min resting baseline data, if available
     if '276' in events_id:
-        # extract the 2 min resting baseline data, if available
         resting = mne.Epochs(
             data, events, event_id=events_id['276'], 
             tmin=0, tmax=120, baseline=None, 

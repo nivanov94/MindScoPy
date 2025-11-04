@@ -15,25 +15,25 @@ with open('data/BCI_Comp_IV_2a/preprocessed_data.pkl', 'rb') as f:
 # Some parameters
 Fs = 250
 krange = range(3, 10)
-Nblks = 12
+n_blks = 12
 tasks = (1, 2, 3, 4)
-Ntasks = len(tasks)
+n_tasks = len(tasks)
 
 chs = ['Fz', 'FC3', 'FC1', 'FCz', 'FC2', 'FC4', 'C5', 'C3', 'C1', 'Cz', 'C2', 'C4', 'C6', 'CP3', 'CP1', 'CPz', 'CP2', 'CP4', 'P1', 'Pz', 'P2', 'POz']
 ch_map = {
     ch : i for i, ch in enumerate(chs)
 }
-Nc = len(chs)
+n_channels = len(chs)
 
 # allocate metric results
-Np = 9
-inter_task_diff = np.zeros((Np, Nblks, Ntasks))
-inter_trial_var = np.zeros((Np, Nblks, Ntasks))
-intra_trial_var = np.zeros((Np, Nblks, Ntasks))
-rwca = np.zeros((Np, Nblks))
+n_participants = 9
+inter_task_diff = np.zeros((n_participants, n_blks, n_tasks))
+inter_trial_var = np.zeros((n_participants, n_blks, n_tasks))
+intra_trial_var = np.zeros((n_participants, n_blks, n_tasks))
+rwca = np.zeros((n_participants, n_blks))
 
 # iterate over participants
-for i_p, p in enumerate(range(1,Np+1)):
+for i_p, p in enumerate(range(1,n_participants+1)):
     print("*"*80)
     print(f"Participant {p}...")
 
@@ -47,60 +47,59 @@ for i_p, p in enumerate(range(1,Np+1)):
 
     # remove artifacts
     # first apply peak rejection
-    X, rejected_trials = peak_rejection(X, threshold=350, verbose=True)
+    X, rejected_trials = peak_rejection(X, threshold=100, verbose=True)
     y = np.delete(y, rejected_trials)
     blocks = np.delete(blocks, rejected_trials)
 
-    # then apply riemannian potato rejection
-    clean_X = []
-    clean_y = []
-    clean_blocks = []
-    for block in np.unique(blocks):
-        print(f"Applying Riemannian potato rejection to block {block+1}")
-        block_idx = blocks == block
-        X_block = X[block_idx]
-        y_block = y[block_idx]
-        blocks_block = blocks[block_idx]
+    # then apply the Riemannian potato rejection per block
+    clean_data = [
+        riemannian_potato_rejection(X[blocks == b], threshold=2.5, verbose=True)
+        for b in np.unique(blocks)
+    ]
 
-        X_block, rejected_trials = riemannian_potato_rejection(X_block, threshold=2.5, verbose=True)
-        y_block = np.delete(y_block, rejected_trials)
-        blocks_block = np.delete(blocks_block, rejected_trials)
+    X_blocks = []
+    y_blocks = []
+    block_labels = []
 
-        clean_X.append(X_block)
-        clean_y.append(y_block)
-        clean_blocks.append(blocks_block)
+    for b, (X_block, rejected) in zip(np.unique(blocks), clean_data):
+        mask = np.ones(np.sum(blocks == b), dtype=bool)
+        mask[rejected] = False
+        X_blocks.append(X_block)
+        y_blocks.append(y[blocks == b][mask])
+        block_labels.append(np.full(mask.sum(), b))
 
-    X = np.concatenate(clean_X)
-    y = np.concatenate(clean_y)
-    blocks = np.concatenate(clean_blocks)
+    X = np.concatenate(X_blocks, axis=0)
+    y = np.concatenate(y_blocks, axis=0)
+    blocks = np.concatenate(block_labels, axis=0)
 
     print("Preprocessing ...")
     # apply rebias to each block to reduce non-stationarity between blocks/sessions
-    Nt, Nc, Ns = X.shape
-    Nblks = len(np.unique(blocks))
+    n_trials, n_channels, n_samples = X.shape
+    n_blks = len(np.unique(blocks))
 
     # block means
-    block_means = np.zeros((Nblks, Nc, Nc))
+    block_means = np.zeros((n_blks, n_channels, n_channels))
     for i, block in enumerate(np.sort(np.unique(blocks))):
         block_covs = pyriemann.utils.covariance.covariances(X[blocks == block])
         block_means[i] = pyriemann.utils.mean.mean_covariance(block_covs)
 
-    # Generate sub-epochs for each trial
+    # Generate epochs for each trial - Note different strides for clustering and 
+    # trajectory analysis as in the paper
     length = 2.0
     stride_traj = 0.5
     stride_clust = 1.0
-    Ns_epoch = int(Fs * length)
-    X_clust = epoch(X, Ns_epoch, int(Fs * stride_clust))
-    X_traj = epoch(X, Ns_epoch, int(Fs * stride_traj))
-    N_clust_epochs = X_clust.shape[1]
-    N_traj_epochs = X_traj.shape[1]
+    n_samples_epoch = int(Fs * length)
+    X_clust = epoch(X, n_samples_epoch, int(Fs * stride_clust))
+    X_traj = epoch(X, n_samples_epoch, int(Fs * stride_traj))
+    n_clust_epochs = X_clust.shape[1]
+    n_traj_epochs = X_traj.shape[1]
 
-    # apply the rebiasing to the sub-epochs
-    blocks_clust_epochs = np.repeat(blocks, N_clust_epochs)
-    blocks_traj_epochs = np.repeat(blocks, N_traj_epochs)
+    # apply the rebiasing to the epochs
+    blocks_clust_epochs = np.repeat(blocks, n_clust_epochs)
+    blocks_traj_epochs = np.repeat(blocks, n_traj_epochs)
 
-    X_clust = np.reshape(X_clust, (-1, Nc, Ns_epoch))
-    X_traj = np.reshape(X_traj, (-1, Nc, Ns_epoch))
+    X_clust = np.reshape(X_clust, (-1, n_channels, n_samples_epoch))
+    X_traj = np.reshape(X_traj, (-1, n_channels, n_samples_epoch))
 
     X_clust_covs = pyriemann.utils.covariance.covariances(X_clust)
     X_traj_covs = pyriemann.utils.covariance.covariances(X_traj)
@@ -118,20 +117,20 @@ for i_p, p in enumerate(range(1,Np+1)):
     X_traj_feats = feat_extrator.transform(X_traj_covs)
 
     # put the data back into (trial, epoch, feature) format
-    X_clust_feats = np.reshape(X_clust_feats, (Nt, N_clust_epochs, -1))
-    X_traj_feats = np.reshape(X_traj_feats, (Nt, N_traj_epochs, -1))
+    X_clust_feats = np.reshape(X_clust_feats, (n_trials, n_clust_epochs, -1))
+    X_traj_feats = np.reshape(X_traj_feats, (n_trials, n_traj_epochs, -1))
 
     print("Generating subspace...")
     # Perform clustering and generate the trajectory subspace
     np.random.seed(42)
-    Traj_subspace = ms.Trajectory_Subspace(krange=krange).fit(
+    Traj_subspace = ms.SubspaceTrajectoryModel(krange=krange).fit(
         X_clust_feats, y=y
     )
-    print(f"Subspace dimension: {Traj_subspace._subspace_dim}")
+    print(f"Subspace dimension: {Traj_subspace.subspace_dim}")
     
     # compute the metrics for each block and task
     print("Computing metrics...")
-    for i_blk, blk in enumerate(range(Nblks)):
+    for i_blk, blk in enumerate(range(n_blks)):
         print(f"\tBlock {blk}...")
 
         # get the block data - This is the full trial data for classification
@@ -141,8 +140,8 @@ for i_p, p in enumerate(range(1,Np+1)):
         # get the Epoch features for the block
         X_feats_blk = X_traj_feats[blocks == blk]
 
-        # compute the trajectory -- TODO from here...
-        Traj_all_tasks = ms.Trajectory(Traj_subspace).fit(X_feats_blk, y=y_block)
+        # compute the trajectory
+        Traj_all_tasks = ms.Trajectory(Traj_subspace).fit(X_feats_blk, y=y_blk)
 
         for i_t, task in enumerate(tasks):
             print(f"\t\tTask {task}...")
@@ -155,15 +154,15 @@ for i_p, p in enumerate(range(1,Np+1)):
             Traj_task = ms.Trajectory(Traj_subspace).fit(X_feats_task, y=y_task)
 
             # compute the InterTaskDiff
-            itd = Traj_task.InterTaskDiff(Traj_all_tasks)
+            itd = Traj_task.inter_task_diff(Traj_all_tasks)
             inter_task_diff[i_p, i_blk, i_t] = np.mean(itd) # task the mean over all epochs for correlation analysis
 
             # compute the InterTrialVar
-            itv = Traj_task.InterTrialVar(Traj_all_tasks)
+            itv = Traj_task.inter_trial_var(Traj_all_tasks)
             inter_trial_var[i_p, i_blk, i_t] = np.mean(itv)
 
             # compute the IntraTrialVar
-            intra_trial_var[i_p, i_blk, i_t] = Traj_task.IntraTrialVar()
+            intra_trial_var[i_p, i_blk, i_t] = Traj_task.intra_trial_var()
 
         # compute the RWCA
         # use the mean because the RWCA returns F1 scores for each task individuallly
@@ -176,8 +175,8 @@ f, ax = plt.subplots(1, 2, figsize=(10, 5))
 colours = ('tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan')
 
 # plt InterTaskDiff vs. RWCA
-for i_p in range(Np):
-    for i_blk in range(Nblks):
+for i_p in range(n_participants):
+    for i_blk in range(n_blks):
         # use the mean of the inter-task differences across the tasks
         ax[0].scatter(
             np.log(np.mean(inter_task_diff[i_p, i_blk, :])), rwca[i_p, i_blk],
@@ -196,8 +195,8 @@ ax[0].set_xlabel('InterTaskDiff')
 ax[0].legend()
 
 # plt InterTrialVar vs. RWCA
-for i_p in range(Np):
-    for i_blk in range(Nblks):
+for i_p in range(n_participants):
+    for i_blk in range(n_blks):
         # use the mean of the inter-task differences across the tasks
         ax[1].scatter(
             np.mean(inter_trial_var[i_p, i_blk, :]), rwca[i_p, i_blk],
@@ -219,7 +218,7 @@ plt.show()
 # plot the InterTrialVar vs. IntraTrialVar
 f, ax = plt.subplots(1, 1, figsize=(5, 5))
 
-for i_p in range(Np):
+for i_p in range(n_participants):
     ax.scatter(
         inter_trial_var[i_p], intra_trial_var[i_p],
         label=f'P{i_p+1}', color=colours[i_p]

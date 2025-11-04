@@ -23,7 +23,7 @@ def rebias_covariances(C, P):
     References
     ----------
     .. [1] Benaroch, C. et al. (2021). Long-Term BCI Training of a 
-              Tetraplegic User: Adaptive Riemaiian Classifiers and User
+              Tetraplegic User: Adaptive Riemannian Classifiers and User
               Training. Frontiers in Human Neuroscience, 15.
     """
 
@@ -33,14 +33,14 @@ def rebias_covariances(C, P):
     if C.ndim != 3 or C.shape[1] != P.shape[0] or C.shape[2] != P.shape[1]:
         raise ValueError("Matrix C must have shape (m, n, n) where n matches P.")
 
-    # Eigen decomposition of C
+    # Eigen decomposition of P
     eigvals, eigvecs = np.linalg.eigh(P)
     
     # Check for positive definiteness
     if np.any(eigvals <= 0):
         raise np.linalg.LinAlgError("Matrix P must be positive definite.")
 
-    # Compute C^(-1/2)
+    # Compute P^(-1/2)
     P_inv_sqrt = eigvecs @ np.diag(1.0 / np.sqrt(eigvals)) @ eigvecs.T
 
     # Efficient batch transformation using np.einsum

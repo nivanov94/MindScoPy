@@ -7,36 +7,36 @@ def epoch(X, length, stride):
 
     Parameters
     ----------
-    X : array_like (Nt, Nc, Ns)
-        The input signal to be segmented, where Nt is the number of epochs to
-        segment into smaller epochs, Nc is 
-        the number of channels and Ns is the number of samples. If data has
-        not been segmented into epochs, Nt should be 1.
+    X : array_like (n_trials, n_channels, n_samples)
+        The input signal to be segmented, where n_trials is the number of epochs to
+        segment into smaller epochs, n_channels is 
+        the number of channels and n_samples is the number of samples. If data has
+        not been segmented into epochs, n_trials should be 1.
 
     length : int
-        The length in samples of the sub-epochs to segment the signal into.
+        The length in samples of the epochs to segment the signal into.
         Should be equal to the sampling rate of the signal multiplied by the
         desired epoch length in seconds.
 
     stride : int
-        The stride in samples to use when segmenting the signal into sub-epochs.
+        The stride in samples to use when segmenting the signal into epochs.
         Should be equal to the sampling rate of the signal multiplied by the
         desired stride in seconds.
 
     Returns
     -------
-    X_epoch : array_like (Nt, Ne, Nc, length)
-        The segmented signal, where Nt is the number of epochs, Ne is the number
-        of sub-epochs per epoch, Nc is the number of channels and length is the
-        length of each sub-epoch.
+    X_epoch : array_like (n_trials, n_epochs, n_channels, length)
+        The segmented signal, where n_trials is the number of trials, n_epochs is the number
+        of epochs per trial, n_channels is the number of channels and length is the
+        length of each epoch.
     """
-    Nt, Nc, Ns = X.shape
+    n_trials, n_channels, n_samples = X.shape
 
-    Ne = (Ns - length) // stride + 1
+    n_epochs = (n_samples - length) // stride + 1
 
-    X_epoch = np.zeros((Nt, Ne, Nc, length))
+    X_epoch = np.zeros((n_trials, n_epochs, n_channels, length))
 
-    for i in range(Ne):
+    for i in range(n_epochs):
         X_epoch[:, i] = X[:, :, i*stride:i*stride+length]
 
     return X_epoch
@@ -49,9 +49,9 @@ def bandpass_filter(X, lowcut, highcut, fs, order=4):
 
     Parameters
     ----------
-    X : array_like (Nc, Ns)
-        The input signal to be filtered, where Nc is the number of channels
-        and Ns is the number of samples.
+    X : array_like (n_channels, n_samples)
+        The input signal to be filtered, where n_channels is the number of channels
+        and n_samples is the number of samples.
 
     lowcut : float
         The low cutoff frequency in Hz.
@@ -67,7 +67,7 @@ def bandpass_filter(X, lowcut, highcut, fs, order=4):
 
     Returns
     -------
-    X_filt : array_like (Nc, Ns)
+    X_filt : array_like (n_channels, n_samples)
         The filtered signal.
     """
 
@@ -82,9 +82,9 @@ def downsample(X, fs_new, fs_old):
 
     Parameters
     ----------
-    X : array_like (Nc, Ns)
-        The input signal to be resampled, where Nc is the number of channels
-        and Ns is the number of samples.
+    X : array_like (n_channels, n_samples)
+        The input signal to be resampled, where n_channels is the number of channels
+        and n_samples is the number of samples.
 
     fs_new : float
         The new sampling rate in Hz.
@@ -94,13 +94,13 @@ def downsample(X, fs_new, fs_old):
 
     Returns
     -------
-    X_resampled : array_like (Nc, Ns_new)
+    X_resampled : array_like (n_channels, n_samples_new)
         The resampled signal.
     """
-    Nc, Ns = X.shape
+    n_channels, n_samples = X.shape
 
-    Ns_new = int(Ns * fs_new / fs_old)
+    n_samples_new = int(n_samples * fs_new / fs_old)
 
-    X_resampled = resample(X, Ns_new, axis=1)
+    X_resampled = resample(X, n_samples_new, axis=1)
 
     return X_resampled

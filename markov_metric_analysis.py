@@ -221,7 +221,7 @@ for i_p, p in enumerate(range(1,n_participants+1)):
             y_tr = y_tr[y_tr != 0]
             X_te = X_te[y_te != 0]
             y_te = y_te[y_te != 0]
-            clsf = ms.classification.CSP_LDA(classes=4)
+            clsf = ms.classification.CSP_LDA()
             clsf.fit(X_tr, y_tr)
             y_pred = clsf.predict(X_te)
             clsf_f1[i_p, i_r*n_folds + i_f] = f1_score(y_te, y_pred, average='macro')

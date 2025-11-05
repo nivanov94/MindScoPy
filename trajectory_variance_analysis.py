@@ -33,7 +33,7 @@ intra_trial_var = np.zeros((n_participants, n_blks, n_tasks))
 rwca = np.zeros((n_participants, n_blks))
 
 # iterate over participants
-for i_p, p in enumerate(range(1,n_participants+1)):
+for i_p, p in enumerate(range(1, n_participants+1)):
     print("*"*80)
     print(f"Participant {p}...")
 

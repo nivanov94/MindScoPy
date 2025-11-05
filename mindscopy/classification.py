@@ -1,284 +1,329 @@
 import numpy as np
-from itertools import combinations as iter_combs
-from scipy.linalg import eigh
-import scipy.stats
-import pyriemann
-import mne
-from matplotlib import pyplot as plt
+from itertools import combinations
+from scipy.linalg import eigh, pinv
 from scipy.special import binom
+from scipy import stats
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.model_selection import StratifiedKFold
-import sklearn.metrics
+from sklearn import metrics
+from matplotlib import pyplot as plt
+import mne
+import pyriemann
+
 
 class CSP:
     """
-    Vanilla CSP - no feature optimization, single freq band
+    Common Spatial Pattern (CSP) implementation [1]_.
+
+    Supports binary and multi-class (OVR or pairwise) extensions using either 
+    Euclidean or Riemannian mean covariance matrices.
+
+    Parameters
+    ----------
+    m : int, default=2
+        Number of spatial filters per class.
+    multi_class_mode : {'OVR', 'PW'}, default='OVR'
+        Multi-class strategy: one-vs-rest (OVR) or pairwise (PW).
+    mean_method : {'euclid', 'riem'}, default='euclid'
+        Method for computing class-mean covariance matrices.
+    log_var_feats : bool, default=False
+        Whether to apply log-variance transformation to CSP features.
+
+    References
+    ----------
+    .. [1] Koles, Z. J., Lind, J. C., & Flor-Henry, P. (1994). 
+           Spatial patterns in the background EEG underlying mental disease 
+           in man. Electroencephalography and clinical neurophysiology, 91(5), 
+           319-328.
     """
-    
-    def __init__(self,
-                 classes,
-                 m=2,
-                 multi_class_ext='OVR',
-                 mean_method='euclid',
-                 log_var_feats=False):
-        
-        self.classes = classes
-        self.multi_class_ext = multi_class_ext
+
+    def __init__(
+        self, m=2, multi_class_mode='OVR',
+        mean_method='euclid', log_var_feats=False
+    ):
         self.m = m
+        self.multi_class_mode = multi_class_mode
         self.mean_method = mean_method
         self.log_var_feats = log_var_feats
-        
         self.filters_ = None
         self.patterns_ = None
-    
-    
-    def transform(self,X):
-        Xcsp = self._apply_csp_filts(self.filters_, X).squeeze()
 
-        if self.log_var_feats:
-            return self.log_var(Xcsp)
-        else:
-            return Xcsp
-        
-    def fit(self,X,y):
-        # Calculate spatial filters and extract features
-        W, A = self._calc_csp_filters(X,y)
-        
-        self.patterns_ = A
-        self.filters_ = W
-    
-    def fit_transform(self,X,y):
-        self.fit(X,y)
-        return self.transform(X)
-    
-    def _calc_csp_filters(self,X,y):
+
+    def fit(self, X, y):
         """
-	Compute the CSP filters using the inputted data
-	"""
+        Fit CSP filters to data.
+        
+        Parameters
+        ----------
+        X : ndarray, shape (n_trials, n_channels, n_samples)
+            EEG data.
+        y : ndarray, shape (n_trials,)
+            Labels.
 
-        if self.classes == 2:
-            return self._calc_binary_csp_filters(X,y)
+        Returns
+        -------
+        self : CSP instance
+            Fitted CSP instance.
+        """
+        W, A = self._compute_filters(X, y)
+        self.filters_ = W
+        self.patterns_ = A
+        return self
+
+
+    def transform(self, X):
+        """
+        Apply learned CSP filters to new data.
         
-        if self.multi_class_ext == 'OVR':
-	    # compute set of filters for one-vs-rest or one-vs-all classification
-            _, Nc, Ns = X.shape
-            labels = np.unique(y)
-            Nl = labels.shape[0]
-            W = np.zeros((Nl,Nc,2*self.m))
-            A = np.zeros((Nl,Nc,Nc))
-            
-            for i_l in range(Nl):
-                l = labels[i_l]
-                yl = np.copy(y)
-                yl[y==l] = 0 # current class label aliased as 0
-                yl[y!=l] = 1 # all others aliased as 1
-                
-                W[i_l,:,:], A[i_l,:,:] = self._calc_binary_csp_filters(X,yl)
-            
-            return W, A
-                
-        elif self.multi_class_ext == 'PW':
-	    # compute set of filters for pairwise one-vs-one classification
-            _, Nc, Ns = X.shape
-            labels = np.unique(y)
-            Nl = labels.shape[0]
-            
-            Nf = int(binom(Nl,2)) # number of pairs
-            
-            W = np.zeros((Nf,Nc,2*self.m))
-            A = np.zeros((Nf,Nc,Nc))
-            
-            for (i,(l1,l2)) in enumerate(iter_combs(labels,2)):
-                Xl1 = X[y==l1,:,:,:]
-                Xl2 = X[y==l2,:,:,:]
-		# create feature and label matrices using the current pair
-                yl = np.concatenate((l1 * np.ones(Xl1.shape[0],),
-                                     l2 * np.ones(Xl2.shape[0])),
-                                    axis=0)
-                Xl = np.concatenate((Xl1,Xl2),
-                                    axis=0)                
-                
-                W[i,:,:], A[i,:,:] = self._calc_binary_csp_filters(Xl,yl)
-            
-            return W, A
+        Parameters
+        ----------
+        X : ndarray, shape (n_trials, n_channels, n_samples)
+            EEG data.
+
+        Returns
+        -------
+        X_csp : ndarray, shape (n_trials, n_filters) or (n_trials, n_filters, n_samples)
+            Transformed CSP features.
+        """
+        Xcsp = self._apply_filters(self.filters_, X)
+        return self.log_var(Xcsp) if self.log_var_feats else Xcsp
+
+
+    def fit_transform(self, X, y):
+        """
+        Fit CSP and transform in one step.
         
+        Parameters
+        ----------
+        X : ndarray, shape (n_trials, n_channels, n_samples)
+            EEG data.
+        y : ndarray, shape (n_trials,)
+            Labels.
+
+        Returns
+        -------
+        X_csp : ndarray, shape (n_trials, n_filters) or (n_trials, n_filters, n_samples)
+            Transformed CSP features.
+        """
+        self.fit(X, y)
+        return self.transform(X)
+
+
+    def _compute_filters(self, X, y):
+        """Compute CSP filters for binary or multi-class data."""
+        n_classes = len(np.unique(y))
+        if n_classes == 2:
+            return self._compute_binary_filters(X, y)
+
+        labels = np.unique(y)
+        n_labels = len(labels)
+        n_channels = X.shape[1]
+
+        if self.multi_class_mode == 'OVR':
+            W = np.zeros((n_labels, n_channels, 2 * self.m))
+            A = np.zeros((n_labels, n_channels, n_channels))
+            for i, lbl in enumerate(labels):
+                yl = np.where(y == lbl, 0, 1)
+                W[i], A[i] = self._compute_binary_filters(X, yl)
+
+        elif self.multi_class_mode == 'PW':
+            n_pairs = int(binom(n_labels, 2))
+            W = np.zeros((n_pairs, n_channels, 2 * self.m))
+            A = np.zeros((n_pairs, n_channels, n_channels))
+            for i, (l1, l2) in enumerate(combinations(labels, 2)):
+                mask = np.isin(y, [l1, l2])
+                X_pair, y_pair = X[mask], y[mask]
+                y_pair = np.where(y_pair == l1, 0, 1)
+                W[i], A[i] = self._compute_binary_filters(X_pair, y_pair)
+
         else:
-            raise Exception("Invalid multi-class extention")
-        
-    
-    def _calc_binary_csp_filters(self,X,y):
-        from scipy.linalg import pinv
-        _, Nc, Ns = X.shape
-        
-        labels = np.sort(np.unique(y))
-        Nl = labels.shape[0]
-        
-        if Nl != 2:
-            raise Exception("invalid number of labels")
-        
-        # step 0 - compute the covariance for each trial
-        C = pyriemann.utils.covariance.covariances(X)
-
-        if self.mean_method == 'euclid':
-            C0_bar = np.mean(C[y==labels[0]], axis=0)
-            C1_bar = np.mean(C[y==labels[1]], axis=0)
-        elif self.mean_method == 'riem':
-            C0_bar = pyriemann.utils.mean.mean_riemann(C[y==labels[0]])
-            C1_bar = pyriemann.utils.mean.mean_riemann(C[y==labels[1]])
-
-        Ctot_bar = C0_bar + C1_bar
-
-        # step 1 - compute the whitening transform
-        l, U = np.linalg.eig(Ctot_bar)
-        P = np.matmul(np.diag(l ** (-1/2)), U.T) # whitening matrix
-        
-        # step 2 - apply the whitening transform
-        C0_bar_white = np.matmul(P, np.matmul(C0_bar, P.T))
-        Ctot_white = np.matmul(P, np.matmul(Ctot_bar, P.T))
-
-        # step 3 - compute the filters
-        l, V = eigh(C0_bar_white, Ctot_white)
-
-        # sort the eigenvalues and eigenvectors
-        ix = np.flip(np.argsort(l))
-        l = l[ix]
-        V = V[:,ix]
-
-        # step 4 - select eigenvectors associated with highest and lowest eigenvalue
-        Phi = np.concatenate((V[:,:self.m], V[:,-self.m:]), axis=1)
-        
-        # step 5 - rotate the filters back into the channel space
-        W = np.matmul(P.T, Phi)
-        A = np.abs(pinv(np.matmul(P.T, V)).T)
+            raise ValueError("multi_class_mode must be 'OVR' or 'PW'.")
         
         return W, A
-    
-    def _apply_csp_filts(self,W,X):
-        Nt,Nc,Ns = X.shape
-        
-        if len(W.shape) == 2:
-            Ncl = 1
-            Ncw, Nf = W.shape
-            W = np.expand_dims(W,axis=0)
-            X_filt = np.zeros((Nt,1,Nf,Ns))
+
+
+    def _compute_binary_filters(self, X, y):
+        """Compute binary CSP spatial filters."""
+        labels = np.unique(y)
+        if len(labels) != 2:
+            raise ValueError("Binary CSP requires exactly 2 labels.")
+
+        C = pyriemann.utils.covariance.covariances(X)
+
+        # Compute class means
+        if self.mean_method == 'euclid':
+            C0, C1 = C[y == labels[0]].mean(0), C[y == labels[1]].mean(0)
+        elif self.mean_method == 'riem':
+            C0 = pyriemann.utils.mean.mean_riemann(C[y == labels[0]])
+            C1 = pyriemann.utils.mean.mean_riemann(C[y == labels[1]])
         else:
-            Ncl, Ncw, Nf = W.shape
-            X_filt = np.zeros((Nt,Ncl,Nf,Ns))
-            
-        if Ncw != Nc:
-            raise Exception("Channel mismatch")
-        
-        for i_t in range(Nt):
-            for i_f in range(Ncl):
-                X_filt[i_t,i_f,:,:] = np.matmul(W[i_f,:,:].T, X[i_t,:,:])
-            
+            raise ValueError("Invalid mean_method.")
+
+        Csum = C0 + C1
+
+        # Whitening transform
+        eigvals, eigvecs = np.linalg.eigh(Csum)
+        P = np.dot(np.diag(eigvals ** -0.5), eigvecs.T)
+
+        # Whitened covariances and CSP eigen decomposition
+        C0w = P @ C0 @ P.T
+        Csw = P @ Csum @ P.T
+        lmbda, V = eigh(C0w, Csw)
+        idx = np.flip(np.argsort(lmbda))
+        V = V[:, idx]
+
+        # Select top/bottom eigenvectors and map back to sensor space
+        Phi = np.hstack((V[:, :self.m], V[:, -self.m:]))
+        W = P.T @ Phi
+        A = np.abs(pinv(P.T @ V).T)
+
+        return W, A
+
+
+    def _apply_filters(self, W, X):
+        """
+        Apply CSP spatial filters to EEG trials.
+
+        Parameters
+        ----------
+        W : ndarray
+            CSP spatial filters.
+            Shape:
+                (n_channels, n_filters) for binary CSP, or
+                (n_filter_sets, n_channels, n_filters) for multi-class extensions.
+        X : ndarray, shape (n_trials, n_channels, n_samples)
+            EEG data to filter.
+
+        Returns
+        -------
+        X_filt : ndarray
+            CSP-filtered data of shape (n_trials, n_filter_sets * n_filters, n_samples).
+            For binary CSP, n_filter_sets = 1.
+        """
+        n_trials, n_channels, n_samples = X.shape
+
+        # Standardize filter dimensions
+        if W.ndim == 2:
+            # Single-class case: expand to 3D for broadcasting
+            W = W[np.newaxis, ...]  # (1, n_channels, n_filters)
+        elif W.ndim != 3:
+            raise ValueError("W must be 2D or 3D (n_channels, n_filters) or (n_filter_sets, n_channels, n_filters)")
+
+        n_filt_sets, n_ch_W, n_filters = W.shape
+
+        # Sanity check
+        if n_ch_W != n_channels:
+            raise ValueError(f"Channel mismatch: W has {n_ch_W}, but X has {n_channels}")
+
+        # Vectorized application:
+        #   For each filter set i and trial t:
+        #       X_filt[t, i, :, :] = W[i].T @ X[t]
+        #
+        # einsum notation:
+        #   t = trial, c = filter set, n = channels, f = filters, s = samples
+        #   X_filt[t, c, f, s] = W[c, n, f]^T * X[t, n, s]
+        X_filt = np.einsum('cnf,tns->tcfs', W, X)
+
+        # Reshape to (n_trials, n_filter_sets * n_filters, n_samples)
+        X_filt = X_filt.reshape(n_trials, n_filt_sets * n_filters, n_samples)
+
         return X_filt
-    
-    def log_var(self,X):
-        """compute log variance of each CSP filter channel"""
-        if len(X.shape) == 3:
-            X = np.expand_dims(X,axis=1)        
 
-        Nt, Nf, Nc, Ns = X.shape # Nc = 2m, Nf is the number of CSP filters (for >2 class problem)
 
-        X_log_var = np.log(np.var(X,axis=3,ddof=0)) # Nt, Nf, Nc
-        X_log_var = np.resize(X_log_var, (Nt,Nf*Nc))
-                
-        return X_log_var
-    
-    def visualize_patterns(self, chs):
-
-        info = mne.create_info(ch_names=chs, sfreq=1., ch_types='eeg')
-        montage = mne.channels.make_standard_montage('standard_1020')
-        info.set_montage(montage)
-
-        fig, axes = plt.subplots(nrows=1,ncols=self.patterns_.shape[0]*self.m, figsize=(14, 6))
-        vmax = np.max(np.abs(self.patterns_))
-        
-        for i_p, pattern in enumerate(self.patterns_):
-            for i_m in range(self.m):
-                im, cm = mne.viz.plot_topomap(pattern[:,i_m], info, vlim=(0,vmax), show=False, axes=axes[i_p*self.m+i_m], cmap='RdBu')
-    
-        # manually fiddle the position of colorbar
-        width = 2.5*self.patterns_.shape[0]*self.m
-        ax_x_start = 0.95
-        ax_x_width = 0.1 / width
-        ax_y_start = 0.28
-        ax_y_height = 0.5
-        cbar_ax = fig.add_axes([ax_x_start, ax_y_start, ax_x_width, ax_y_height])
-        clb = fig.colorbar(im, cax=cbar_ax)
-        clb.ax.set_title('AU',fontsize=18) # title on top of colorbar
-        clb.ax.tick_params(labelsize=18)
-
-        fig.canvas.draw()
-        fig.canvas.flush_events()
-        plt.show()
+    def log_var(self, X):
+        """Compute log-variance CSP features."""
+        var_feats = np.log(np.var(X, axis=-1, ddof=0, keepdims=False))
+        return var_feats
 
 
 class CSP_LDA:
+    """Combined CSP and LDA pipeline."""
 
-    def __init__(self, classes, m=2, multi_class_ext='OVR', mean_method='euclid', log_var_feats=True):
-        self.classes = classes
-        self.multi_class_ext = multi_class_ext
-
-        self.csp = CSP(classes, m, multi_class_ext, mean_method, log_var_feats)
+    def __init__(
+            self, m=2, multi_class_mode='OVR',
+            mean_method='euclid', log_var_feats=True
+    ):
+        self.csp = CSP(m, multi_class_mode, mean_method, log_var_feats)
         self.lda = LDA(solver='lsqr', shrinkage='auto')
 
     def fit(self, X, y):
         X_csp = self.csp.fit_transform(X, y)
         self.lda.fit(X_csp, y)
+        return self
 
     def transform(self, X):
-        X_csp = self.csp.transform(X)
-        return self.lda.transform(X_csp)
-    
-    def fit_transform(self, X, y):
-        self.fit(X, y)
-        return self.transform(X)
-    
+        return self.lda.transform(self.csp.transform(X))
+
     def predict(self, X):
-        X_csp = self.csp.transform(X)
-        return self.lda.predict(X_csp)
-    
+        return self.lda.predict(self.csp.transform(X))
+
     def fit_predict(self, X, y):
         self.fit(X, y)
         return self.predict(X)
 
 
 def RWCA(X, y, cv_method='LOO', metric='accuracy', repeats=100):
-    """ Compute RWCA metric for each block of trials """
-    classes = len(np.unique(y))
-    clsf = CSP_LDA(classes=classes, m=1, log_var_feats=True)
+    """
+    Compute RWCA metric [1,2]_ using CSP+LDA classification.
 
-    Ntrials = X.shape[0]
+    Parameters
+    ----------
+    X : ndarray, shape (n_trials, n_channels, n_samples)
+        EEG data.
+    y : ndarray, shape (n_trials,)
+        Labels.
+    cv_method : {'LOO', 'KFold'}, default='LOO'
+        Cross-validation method. 'LOO' for leave-one-out, 'KFold' for 
+        stratified k-fold (k=3).
+    metric : {'accuracy', 'balanced_accuracy', 'recall', 'f1'}
+        Evaluation metric.
+    repeats : int, default=100
+        Number of stratified CV repetitions (for KFold mode).
+
+    Returns
+    -------
+    rwca : float
+        Computed run-wise classification accuracy performance metric.
+
+    References
+    ----------
+    .. [1] Lotte, F., & Jeunet, C. (2018). Defining and quantifying users’
+           mental imagery-based BCI skills: a first step. Journal of neural 
+           engineering, 15(4), 046030.
+
+    .. [2] Ivanov, N., Wong, M., and Chau, T. (2025). A multi-class intra-trial
+           trajectory analysis technique to visualize and quantify variability
+           of mental imagery EEG signals. International Journal of Neural 
+           Systems. https://doi.org/10.1142/S0129065725500753.
+
+    """
+    n_classes = len(np.unique(y))
+    clf = CSP_LDA(m=1, log_var_feats=True)
+    n_trials = len(y)
+
     if cv_method == 'LOO':
-        # perform LOO CV
-        y_pred = np.zeros((Ntrials,))
-        for i_t in range(Ntrials):
-            train_index = np.delete(np.arange(Ntrials), i_t)
-            test_index = i_t
-
-            clsf.fit(X[train_index], y[train_index])
-            y_pred[i_t] = clsf.predict(X[test_index])[0]
+        y_pred = np.zeros(n_trials)
+        for i in range(n_trials):
+            idx_train = np.arange(n_trials) != i
+            clf.fit(X[idx_train], y[idx_train])
+            y_pred[i] = clf.predict(X[i:i + 1])[0]
     else:
-        y_pred = np.zeros((Ntrials,repeats))
-        for i_r in range(repeats):
-            skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=i_r)
-            for train_index, test_index in skf.split(X, y):
-                clsf.fit(X[train_index], y[train_index])
-                y_pred[test_index, i_r] = clsf.predict(X[test_index])
-        
-        # compute the mode of the predictions
-        y_pred = scipy.stats.mode(y_pred, axis=1)[0].squeeze()
+        y_pred = np.zeros((n_trials, repeats))
+        for r in range(repeats):
+            skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=r)
+            for tr_idx, te_idx in skf.split(X, y):
+                clf.fit(X[tr_idx], y[tr_idx])
+                y_pred[te_idx, r] = clf.predict(X[te_idx])
+        y_pred = stats.mode(y_pred, axis=1)[0].squeeze()
 
-    # calculate the RWCA metric
-    if metric == 'accuracy':
-        rwca = sklearn.metrics.accuracy_score(y, y_pred)
-    elif metric == 'balanced_accuracy':
-        rwca = sklearn.metrics.balanced_accuracy_score(y, y_pred, adjusted=True)
-    elif metric == 'recall':
-        rwca = sklearn.metrics.recall_score(y, y_pred, average=None)
-    else:
-        rwca = sklearn.metrics.f1_score(y, y_pred, average=None)
+    metrics_map = {
+        'accuracy': metrics.accuracy_score,
+        'balanced_accuracy': metrics.balanced_accuracy_score,
+        'recall': lambda y, yp: metrics.recall_score(y, yp, average=None),
+        'f1': lambda y, yp: metrics.f1_score(y, yp, average=None),
+    }
 
-    return rwca
+    if metric not in metrics_map:
+        raise ValueError(f"Invalid metric '{metric}'.")
+
+    return metrics_map[metric](y, y_pred)

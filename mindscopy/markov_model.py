@@ -19,7 +19,7 @@ class MarkovStateSpace(UnsupervisedSegmentation):
 
     def __init__(
             self, clustering_model=None, n_clusters=None, 
-            k_selection_thresh=0.3, krange=range(2, 12), prefit=False
+            k_selection_thresh=0.3, krange=None, prefit=False
     ):
         """
         Initialize the Markov Chain Model object.

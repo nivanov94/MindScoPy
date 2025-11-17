@@ -23,7 +23,7 @@ class UnsupervisedSegmentation:
 
     def __init__(
             self, clustering_model=None, n_clusters=None, 
-            k_selection_thresh=0.3, krange=range(2, 12), prefit=False
+            k_selection_thresh=0.3, krange=None, prefit=False
     ):
         """
         Initialize the Markov Chain Model object.
@@ -31,6 +31,8 @@ class UnsupervisedSegmentation:
         self.clustering_model = clustering_model
         self.n_clusters = n_clusters
         self.k_selection_thresh = k_selection_thresh
+        if krange is None:
+            krange = range(2, 12)
         self.krange = tuple(krange) # conversion to allow non-contiguous ranges
         self.prefit = prefit
 

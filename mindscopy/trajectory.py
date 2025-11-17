@@ -32,7 +32,7 @@ class SubspaceTrajectoryModel(UnsupervisedSegmentation):
     """
 
     def __init__(self, clustering_model=None, n_clusters=None, 
-                 k_selection_thresh=0.3, krange=range(2, 12), prefit=False
+                 k_selection_thresh=0.3, krange=None, prefit=False
     ):
         super().__init__(clustering_model, n_clusters, k_selection_thresh, krange, prefit)
         self.subspace_bases = None

@@ -45,8 +45,9 @@ class SubspaceTrajectoryModel(UnsupervisedSegmentation):
 
         Parameters
         ----------
-        X : ndarray, shape (K, N)
-            Array of K N-dimensional data vectors.
+        X : ndarray, shape (n_trials, n_epochs, n_feats)
+            Input data for clustering, where n_trials is the number of trials,
+            n_epochs is the number of epochs, and n_feats is the number of features.
         """
 
         # fit the clustering model

@@ -39,18 +39,18 @@ class SubspaceTrajectoryModel(UnsupervisedSegmentation):
         self.ref = None # the reference point that acts as the origin for the subspace
 
 
-    def fit(self, centroids, y=None, verbose=False):
+    def fit(self, X, y=None, verbose=False):
         """
         Fit a low-dimensional subspace from cluster centroids.
 
         Parameters
         ----------
-        centroids : ndarray, shape (K, N)
-            Array of K N-dimensional EEG state centroids.
+        X : ndarray, shape (K, N)
+            Array of K N-dimensional data vectors.
         """
 
         # fit the clustering model
-        self.fit_cluster_model(centroids, y, verbose)
+        self.fit_cluster_model(X, y, verbose)
 
         ## define the subspace spanned by the cluster centers
         # compute the mean of the cluster centers

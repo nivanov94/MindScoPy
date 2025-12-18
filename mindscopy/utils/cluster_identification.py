@@ -53,7 +53,7 @@ def compute_pred_strength(k, tr_mod, te_mod, X):
 
     return ps
 
-def cluster_pred_strength(X, y=None, krange=range(2, 12), n_repeats=25):
+def cluster_pred_strength(X, y=None, krange=None, n_repeats=25):
     """ 
     perform the prediction strength of clustering method [1]_
     for k selection
@@ -64,8 +64,8 @@ def cluster_pred_strength(X, y=None, krange=range(2, 12), n_repeats=25):
         The input data to compute the prediction strength on.
     y : array_like (n_samples,)
         The true labels for the input data.
-    krange : iterable
-        The range of k values to evaluate.
+    krange : iterable or None
+        The range of k values to evaluate. If None, defaults to range(2, 12).
     n_repeats : int
         The number of times to repeat the evaluation.
 
@@ -79,6 +79,9 @@ def cluster_pred_strength(X, y=None, krange=range(2, 12), n_repeats=25):
     .. [1] Tibshirani, R., Walther, G. (2005). Cluster Validation by Prediction
            Strength. Journal of Computational and Graphical Statistics, 14(3), 511-528.
     """
+    if krange is None:
+        krange = range(2, 12)
+
     n_folds = 2
     ps = np.ones((len(krange), n_repeats))
 
